@@ -45,16 +45,42 @@ func NewServiceRegister(endpoints []string, key, val string, lease int64) (*Serv
 
 // 设置key和租约
 func (s *ServiceRegister) putKeyWithLease(lease int64) error {
+
+
+		// ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+
+	// 如果key已经存在，则注册失败
+	respGet, err := s.cli.Get(context.Background(), s.key)
+	if err != nil {
+		return err
+	}
+	if len(respGet.Kvs) != 0 {
+		log.Printf("key %s already exists", s.key)
+		return nil
+	}
+	
+	
+
+
 	//设置租约时间
 	resp, err := s.cli.Grant(context.Background(), lease)
 	if err != nil {
 		return err
 	}
+
+
+
 	//注册服务并绑定租约
 	_, err = s.cli.Put(context.Background(), s.key, s.val, clientv3.WithLease(resp.ID))
 	if err != nil {
 		return err
 	}
+
+
+
+
+
+
 	//设置续租 定期发送需求请求
 	leaseRespChan, err := s.cli.KeepAlive(context.Background(), resp.ID)
 
@@ -87,9 +113,14 @@ func (s *ServiceRegister) Close() error {
 }
 
 func main() {
-	var endpoints = []string{"hw.ubuntu.kenger.work:2379"}
+	var endpoints = []string{"43.143.21.219:2379"}
+
+
+	nowStr := strconv.FormatInt(time.Now().Unix(), 10)
+	log.Println(nowStr)
+
 	// 加入时间参数
-	ser, err := NewServiceRegister(endpoints, "/web/node/"+strconv.FormatInt(time.Now().Unix(), 10), "localhost:8000", 5) // 本地的8000端口，
+	ser, err := NewServiceRegister(endpoints, "/web/node", "localhost:8000", 5) // 本地的8000端口，
 	if err != nil {
 		log.Fatalln(err)
 	}

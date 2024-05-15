@@ -88,8 +88,8 @@ func (s *ServiceDiscovery) GetServices() []string {
 	defer s.lock.Unlock()
 	addrs := make([]string, 0)
 
-	for _, v := range s.serverList {
-		addrs = append(addrs, v)
+	for k, v := range s.serverList {
+		addrs = append(addrs, string(k) + string(v))
 	}
 	return addrs
 }
@@ -100,7 +100,7 @@ func (s *ServiceDiscovery) Close() error {
 }
 
 func main() {
-	var endpoints = []string{"hw.ubuntu.kenger.work:2379"}
+	var endpoints = []string{"43.143.21.219:2379"}
 	ser := NewServiceDiscovery(endpoints)
 	defer ser.Close()
 	ser.WatchService("/web/")
