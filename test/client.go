@@ -46,8 +46,7 @@ func NewServiceRegister(endpoints []string, key, val string, lease int64) (*Serv
 // 设置key和租约
 func (s *ServiceRegister) putKeyWithLease(lease int64) error {
 
-
-		// ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+	// ctx, cancel = context.WithTimeout(context.Background(), time.Second)
 
 	// 如果key已经存在，则注册失败
 	respGet, err := s.cli.Get(context.Background(), s.key)
@@ -58,9 +57,6 @@ func (s *ServiceRegister) putKeyWithLease(lease int64) error {
 		log.Printf("key %s already exists", s.key)
 		return nil
 	}
-	
-	
-
 
 	//设置租约时间
 	resp, err := s.cli.Grant(context.Background(), lease)
@@ -68,18 +64,11 @@ func (s *ServiceRegister) putKeyWithLease(lease int64) error {
 		return err
 	}
 
-
-
 	//注册服务并绑定租约
 	_, err = s.cli.Put(context.Background(), s.key, s.val, clientv3.WithLease(resp.ID))
 	if err != nil {
 		return err
 	}
-
-
-
-
-
 
 	//设置续租 定期发送需求请求
 	leaseRespChan, err := s.cli.KeepAlive(context.Background(), resp.ID)
@@ -113,8 +102,16 @@ func (s *ServiceRegister) Close() error {
 }
 
 func main() {
-	var endpoints = []string{"43.143.21.219:2379"}
 
+	// 读取配置文件
+	confs, err := LoadConfigFromEnv()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+	etcdHost := confs["etcd"].(map[string]interface{})["host"].(string)
+	etcdPort := confs["etcd"].(map[string]interface{})["port"].(string)
+
+	var endpoints = []string{etcdHost + ":" + etcdPort}
 
 	nowStr := strconv.FormatInt(time.Now().Unix(), 10)
 	log.Println(nowStr)

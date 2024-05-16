@@ -89,7 +89,7 @@ func (s *ServiceDiscovery) GetServices() []string {
 	addrs := make([]string, 0)
 
 	for k, v := range s.serverList {
-		addrs = append(addrs, string(k) + string(v))
+		addrs = append(addrs, string(k)+string(v))
 	}
 	return addrs
 }
@@ -100,7 +100,15 @@ func (s *ServiceDiscovery) Close() error {
 }
 
 func main() {
-	var endpoints = []string{"43.143.21.219:2379"}
+	// 读取配置文件
+	confs, err := LoadConfigFromEnv()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+	etcdHost := confs["etcd"].(map[string]interface{})["host"].(string)
+	etcdPort := confs["etcd"].(map[string]interface{})["port"].(string)
+
+	var endpoints = []string{etcdHost + ":" + etcdPort}
 	ser := NewServiceDiscovery(endpoints)
 	defer ser.Close()
 	ser.WatchService("/web/")
