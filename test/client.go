@@ -117,7 +117,7 @@ func main() {
 	log.Println(nowStr)
 
 	// 加入时间参数
-	ser, err := NewServiceRegister(endpoints, "/web/node", "localhost:8000", 5) // 本地的8000端口，
+	ser, err := NewServiceRegister(endpoints, "/web/node/" + nowStr, "localhost:8000", 5) // 本地的8000端口，
 	if err != nil {
 		log.Fatalln(err)
 	}
