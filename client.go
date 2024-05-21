@@ -1,103 +1,141 @@
 package main
 
 import (
-	"flag"
-	"fmt"
+	"context"
 	"log"
-
-	// "strings"
+	"strconv"
 	"time"
 
-	"kenger.work/kenger/serverStatusGo"
-
-	jsoniter "github.com/json-iterator/go"
+	"go.etcd.io/etcd/clientv3"
 )
 
-var (
-	SERVER   = flag.String("h", "", "Input the host of the server")
-	PORT     = flag.Int("port", 35601, "Input the port of the server")
-	USER     = flag.String("u", "", "Input the client's username")
-	PASSWORD = flag.String("p", "", "Input the client's password")
-	INTERVAL = flag.Float64("interval", 2.0, "Input the INTERVAL")
-	DSN      = flag.String("dsn", "", "Input DSN, format: username:password@host:port")
-	isVnstat = flag.Bool("vnstat", false, "Use vnstat for traffic statistics, linux only")
-)
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
-type ServerStatus struct {
-	Uptime      uint64          `json:"uptime"`
-	Load        jsoniter.Number `json:"load"`
-	MemoryTotal uint64          `json:"memory_total"`
-	MemoryUsed  uint64          `json:"memory_used"`
-	SwapTotal   uint64          `json:"swap_total"`
-	SwapUsed    uint64          `json:"swap_used"`
-	HddTotal    uint64          `json:"hdd_total"`
-	HddUsed     uint64          `json:"hdd_used"`
-	CPU         jsoniter.Number `json:"cpu"`
-	NetworkTx   uint64          `json:"network_tx"`
-	NetworkRx   uint64          `json:"network_rx"`
-	NetworkIn   uint64          `json:"network_in"`
-	NetworkOut  uint64          `json:"network_out"`
-	Online4     bool            `json:"online4"`
-	Online6     bool            `json:"online6"`
+// ServiceRegister 创建租约注册服务
+type ServiceRegister struct {
+	cli     *clientv3.Client //etcd client
+	leaseID clientv3.LeaseID //租约ID
+	//租约keepalieve相应chan
+	keepAliveChan <-chan *clientv3.LeaseKeepAliveResponse
+	key           string //key
+	val           string //value
 }
 
-func connect() {
-
-	timer := 0.0
-	checkIP := 4
-
-	item := ServerStatus{}
-	for {
-		CPU := status.Cpu(*INTERVAL)
-		var netIn, netOut, netRx, netTx uint64
-		if !*isVnstat {
-			netIn, netOut, netRx, netTx = status.Traffic(*INTERVAL)
-		} else {
-			_, _, netRx, netTx = status.Traffic(*INTERVAL)
-			netIn, netOut, _ = status.TrafficVnstat()
-			// if err != nil {
-			// 	log.Println("Please check if the installation of vnStat is correct")
-			// }
-			log.Printf("Traffic: %d %d\n", netIn, netOut)
-		}
-		memoryTotal, memoryUsed, swapTotal, swapUsed := status.Memory()
-		hddTotal, hddUsed := status.Disk(*INTERVAL)
-		uptime := status.Uptime()
-		load := status.Load()
-		item.CPU = jsoniter.Number(fmt.Sprintf("%.1f", CPU))
-		item.Load = jsoniter.Number(fmt.Sprintf("%.2f", load))
-		item.Uptime = uptime
-		item.MemoryTotal = memoryTotal
-		item.MemoryUsed = memoryUsed
-		item.SwapTotal = swapTotal
-		item.SwapUsed = swapUsed
-		item.HddTotal = hddTotal
-		item.HddUsed = hddUsed
-		item.NetworkRx = netRx
-		item.NetworkTx = netTx
-		item.NetworkIn = netIn
-		item.NetworkOut = netOut
-		if timer <= 0 {
-			if checkIP == 4 {
-				item.Online4 = status.Network(checkIP)
-			} else if checkIP == 6 {
-				item.Online6 = status.Network(checkIP)
-			}
-			timer = 150.0
-		}
-		timer -= *INTERVAL
-		data, _ := json.Marshal(item)
-		fmt.Println(data)
-		fmt.Println(item)
-		time.Sleep(5 * time.Second)
+// NewServiceRegister 新建注册服务
+func NewServiceRegister(endpoints []string, key, val string, lease int64) (*ServiceRegister, error) {
+	cli, err := clientv3.New(clientv3.Config{
+		Endpoints:   endpoints,
+		DialTimeout: 5 * time.Second,
+	})
+	if err != nil {
+		log.Fatal(err)
 	}
+
+	ser := &ServiceRegister{
+		cli: cli,
+		key: key,
+		val: val,
+	}
+
+	//申请租约设置时间keepalive
+	if err := ser.putKeyWithLease(lease); err != nil {
+		return nil, err
+	}
+
+	return ser, nil
+}
+
+// 设置key和租约
+func (s *ServiceRegister) putKeyWithLease(lease int64) error {
+
+	// ctx, cancel = context.WithTimeout(context.Background(), time.Second)
+
+	// 如果key已经存在，则注册失败
+	respGet, err := s.cli.Get(context.Background(), s.key)
+	if err != nil {
+		return err
+	}
+	if len(respGet.Kvs) != 0 {
+		log.Printf("key %s already exists", s.key)
+		return nil
+	}
+
+	//设置租约时间
+	resp, err := s.cli.Grant(context.Background(), lease)
+	if err != nil {
+		return err
+	}
+
+	//注册服务并绑定租约
+	_, err = s.cli.Put(context.Background(), s.key, s.val, clientv3.WithLease(resp.ID))
+	if err != nil {
+		return err
+	}
+
+	//设置续租 定期发送需求请求
+	leaseRespChan, err := s.cli.KeepAlive(context.Background(), resp.ID)
+
+	if err != nil {
+		return err
+	}
+	s.leaseID = resp.ID
+	log.Println(s.leaseID)
+	s.keepAliveChan = leaseRespChan
+	log.Printf("Put key:%s  val:%s  success!", s.key, s.val)
+	return nil
+}
+
+// ListenLeaseRespChan 监听 续租情况，其实这是一个续租管道，每次续租成功都会有一个应答。那么，我们在成功时候就更新value内容
+func (s *ServiceRegister) ListenLeaseRespChan() {
+	for leaseKeepResp := range s.keepAliveChan {
+		log.Println("续约成功", leaseKeepResp)
+
+		// 测试每次更新value内容
+		nowServerStatus := getServerStatus()
+		//序列化为json
+		data, _ := json.Marshal(nowServerStatus)
+		s.val = string(data)
+
+		_, err := s.cli.Put(context.Background(), s.key, s.val, clientv3.WithLease(s.leaseID))
+		if err != nil {
+			log.Println("更新value失败", err)
+		}
+	}
+	log.Println("关闭续租")
+}
+
+// Close 注销服务
+func (s *ServiceRegister) Close() error {
+	//撤销租约
+	if _, err := s.cli.Revoke(context.Background(), s.leaseID); err != nil {
+		return err
+	}
+	log.Println("撤销租约")
+	return s.cli.Close()
 }
 
 func main() {
 
-	for {
-		connect()
+	// 读取配置文件
+	confs, err := LoadConfigFromEnv()
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+	etcdHost := confs["etcd"].(map[string]interface{})["host"].(string)
+	etcdPort := confs["etcd"].(map[string]interface{})["port"].(string)
+
+	var endpoints = []string{etcdHost + ":" + etcdPort}
+
+	nowStr := strconv.FormatInt(time.Now().Unix(), 10)
+	log.Println(nowStr)
+
+	// 加入时间参数
+	ser, err := NewServiceRegister(endpoints, "/web/node/"+nowStr, "localhost:8000", 5) // 本地的8000端口，
+	if err != nil {
+		log.Fatalln(err)
+	}
+	//监听续租相应chan
+	go ser.ListenLeaseRespChan()
+	select {
+	// case <-time.After(20 * time.Second):
+	// 	ser.Close()
 	}
 }

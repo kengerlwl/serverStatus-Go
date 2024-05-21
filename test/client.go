@@ -87,6 +87,12 @@ func (s *ServiceRegister) putKeyWithLease(lease int64) error {
 func (s *ServiceRegister) ListenLeaseRespChan() {
 	for leaseKeepResp := range s.keepAliveChan {
 		log.Println("续约成功", leaseKeepResp)
+		// 测试每次更新value内容
+		s.val = s.val + "1"
+		_, err := s.cli.Put(context.Background(), s.key, s.val, clientv3.WithLease(s.leaseID))
+		if err != nil {
+			log.Println("更新value失败", err)
+		}
 	}
 	log.Println("关闭续租")
 }
@@ -117,7 +123,7 @@ func main() {
 	log.Println(nowStr)
 
 	// 加入时间参数
-	ser, err := NewServiceRegister(endpoints, "/web/node/" + nowStr, "localhost:8000", 5) // 本地的8000端口，
+	ser, err := NewServiceRegister(endpoints, "/web/node/"+nowStr, "localhost:8000", 5) // 本地的8000端口，
 	if err != nil {
 		log.Fatalln(err)
 	}
