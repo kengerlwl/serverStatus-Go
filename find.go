@@ -12,9 +12,10 @@ import (
 
 // ServiceDiscovery 服务发现
 type ServiceDiscovery struct {
-	cli        *clientv3.Client  //etcd client
-	serverList map[string]string //服务列表
-	lock       sync.Mutex
+	cli              *clientv3.Client  //etcd client
+	serverList       map[string]string //服务列表
+	allExistedServer map[string]string //所有存在过的服务
+	lock             sync.Mutex
 }
 
 // NewServiceDiscovery  新建发现服务
@@ -28,8 +29,10 @@ func NewServiceDiscovery(endpoints []string) *ServiceDiscovery {
 	}
 
 	return &ServiceDiscovery{
-		cli:        cli,
-		serverList: make(map[string]string),
+		cli:              cli,
+		serverList:       make(map[string]string),
+		allExistedServer: make(map[string]string),
+		lock:             sync.Mutex{},
 	}
 }
 
@@ -50,7 +53,7 @@ func (s *ServiceDiscovery) WatchService(prefix string) error {
 	return nil
 }
 
-// watcher 监听前缀
+// watcher 监听前缀，用于动态监听服务节点的变化
 func (s *ServiceDiscovery) watcher(prefix string) {
 	rch := s.cli.Watch(context.Background(), prefix, clientv3.WithPrefix())
 	log.Printf("watching prefix:%s now...", prefix)
@@ -66,17 +69,20 @@ func (s *ServiceDiscovery) watcher(prefix string) {
 	}
 }
 
-// SetServiceList 新增服务地址
+// SetServiceList 新增或修改服务地址
 func (s *ServiceDiscovery) SetServiceList(key, val string) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.serverList[key] = string(val)
-	var nowServerStatus ServerStatus
-	err := json.Unmarshal([]byte(val), &nowServerStatus)
-	if err != nil {
-		log.Println("json unmarshal failed" + err.Error())
+
+	if _, flagExist := s.allExistedServer[key]; flagExist {
+		log.Println("update key :", key, "val:", val)
+	} else {
+		log.Println("put key:", key, "val:", val)
 	}
-	log.Println("put key :", key, "val:", val)
+
+	s.allExistedServer[key] = string(val)
+
 }
 
 // DelServiceList 删除服务地址
@@ -116,8 +122,8 @@ func main() {
 	var endpoints = []string{etcdHost + ":" + etcdPort}
 	ser := NewServiceDiscovery(endpoints)
 	defer ser.Close()
-	ser.WatchService("/web/")
-	ser.WatchService("/gRPC/")
+	ser.WatchService("/server/")
+	// ser.WatchService("/gRPC/")
 	for {
 		select {
 		case <-time.Tick(10 * time.Second):

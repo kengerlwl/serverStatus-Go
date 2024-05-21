@@ -127,13 +127,8 @@ func main() {
 	nowStr := strconv.FormatInt(time.Now().Unix(), 10)
 	log.Println(nowStr)
 
-	// 获取当前服务器状态
-	nowServerStatus := getServerStatus()
-	//序列化为json
-	data, _ := json.Marshal(nowServerStatus)
-
 	// 加入时间参数
-	ser, err := NewServiceRegister(endpoints, "/server/kenger-x99/"+nowStr, string(data), 5) // 本地的8000端口，
+	ser, err := NewServiceRegister(endpoints, "/web/node/"+nowStr, "localhost:8000", 5) // 本地的8000端口，
 	if err != nil {
 		log.Fatalln(err)
 	}
