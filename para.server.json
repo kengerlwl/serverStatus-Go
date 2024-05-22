@@ -1,0 +1,6 @@
+{
+    "etcd": {
+        "host": "hw.ubuntu.kenger.work",
+        "port": "2379"
+    }
+}

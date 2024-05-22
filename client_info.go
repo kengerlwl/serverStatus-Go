@@ -13,6 +13,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
+// GetLoadAvg 获取系统的 1 分钟、5 分钟和 15 分钟负载平均值
+
 var (
 	SERVER   = flag.String("h", "", "Input the host of the server")
 	PORT     = flag.Int("port", 35601, "Input the port of the server")
@@ -26,8 +28,28 @@ var (
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 type ServerStatus struct {
+	Name     string `json:"name"` // 服务器名称
+	Type     string `json:"type"` // 服务器类型
+	Host     string `json:"host"` // 服务器地址
+	Location string `json:"location"`
+
 	Uptime      uint64          `json:"uptime"`
-	Load        jsoniter.Number `json:"load"`
+	Load1       float64         `json:"load_1"`
+	Load5       float64         `json:"load_5"`
+	Load15      float64         `json:"load_15"`
+	Ping10010   float64         `json:"ping_10010"`
+	Ping189     float64         `json:"ping_189"`
+	Ping10086   float64         `json:"ping_10086"`
+	Time10010   float64         `json:"time_10010"`
+	Time189     float64         `json:"time_189"`
+	Time10086   float64         `json:"time_10086"`
+	TCP         int             `json:"tcp"`
+	UDP         int             `json:"udp"`
+	Process     int             `json:"process"`
+	Thread      int             `json:"thread"`
+	IORead      uint64          `json:"io_read"`
+	IOWrite     uint64          `json:"io_write"`
+	Custom      string          `json:"custom"`
 	MemoryTotal uint64          `json:"memory_total"`
 	MemoryUsed  uint64          `json:"memory_used"`
 	SwapTotal   uint64          `json:"swap_total"`
@@ -65,9 +87,34 @@ func getServerStatus() ServerStatus {
 	memoryTotal, memoryUsed, swapTotal, swapUsed := status.Memory()
 	hddTotal, hddUsed := status.Disk(*INTERVAL)
 	uptime := status.Uptime()
-	load := status.Load()
+	// load := status.Load()
 	item.CPU = jsoniter.Number(fmt.Sprintf("%.1f", CPU))
-	item.Load = jsoniter.Number(fmt.Sprintf("%.2f", load))
+	// item.Load = jsoniter.Number(fmt.Sprintf("%.2f", load))
+	item.Load1, item.Load5, item.Load15, _ = status.GetLoadAvg()
+
+	// to fix
+	item.Ping10010, item.Time10010 = 0, 0
+	item.Ping189, item.Time189 = 0, 0
+	item.Ping10086, item.Time10086 = 0, 0
+	item.TCP, item.UDP, item.Process, item.Thread = status.Tupd()
+	item.IORead, item.IOWrite = status.DiskIO()
+	item.Custom = "custom"
+
+	// user info
+	confs, err := LoadConfig("para.client.json")
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
+	}
+
+	serverName := confs["serverName"].(string)
+	serverType := confs["serverType"].(string)
+	serverHost := confs["serverHost"].(string)
+	serverLocation := confs["serverLocation"].(string)
+	item.Name = serverName
+	item.Type = serverType
+	item.Host = serverHost
+	item.Location = serverLocation
+
 	item.Uptime = uptime
 	item.MemoryTotal = memoryTotal
 	item.MemoryUsed = memoryUsed

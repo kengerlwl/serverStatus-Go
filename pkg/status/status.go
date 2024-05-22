@@ -1,17 +1,18 @@
 package status
 
 import (
-	"github.com/shirou/gopsutil/v3/cpu"
-	"github.com/shirou/gopsutil/v3/disk"
-	"github.com/shirou/gopsutil/v3/host"
-	"github.com/shirou/gopsutil/v3/load"
-	pNet "github.com/shirou/gopsutil/v3/net"
 	"math"
 	"net"
 	"os/exec"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v3/disk"
+	"github.com/shirou/gopsutil/v3/host"
+	"github.com/shirou/gopsutil/v3/load"
+	pNet "github.com/shirou/gopsutil/v3/net"
 )
 
 var cachedFs = make(map[string]struct{})
@@ -27,6 +28,39 @@ func Uptime() uint64 {
 func Load() float64 {
 	theLoad, _ := load.Avg()
 	return theLoad.Load1
+}
+
+func Tupd() (int, int, int, int) {
+	// tcpCount, _ := execCommand("ss -t | wc -l")
+	// udpCount, _ := execCommand("ss -u | wc -l")
+	// processCount, _ := execCommand("ps -ef | wc -l")
+	// threadCount, _ := execCommand("ps -eLf | wc -l")
+	// return tcpCount - 1, udpCount - 1, processCount - 2, threadCount - 2
+	var a, b, c, d int
+	a = 0
+	b = 0
+	c = 0
+	d = 0
+	return a, b, c, d
+	// return 0, 0, 0, 0, nil
+}
+
+func GetLoadAvg() (float64, float64, float64, error) {
+	avg, err := load.Avg()
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return avg.Load1, avg.Load5, avg.Load15, nil
+}
+
+func DiskIO() (uint64, uint64) {
+	ioStat, _ := disk.IOCounters()
+	var read, write uint64
+	for _, v := range ioStat {
+		read += v.ReadBytes
+		write += v.WriteBytes
+	}
+	return read, write
 }
 
 func Disk(INTERVAL float64) (uint64, uint64) {

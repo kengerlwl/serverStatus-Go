@@ -1,32 +1,68 @@
 package main
 
 import (
-	"context"
 	"fmt"
-	"time"
+	"os/exec"
+	"strconv"
+	"strings"
 )
 
-func main() {
-
-	// 新建一个上下文，ctx，就是context实例。 cancel,是一个函数， 就是ctx取消的函数
-	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-	defer cancel() // 执行这个，ctx.Done()会批量取消阻塞
-
-	go handle(ctx, 500*time.Millisecond)
-	// select {
-	// case <-ctx.Done():
-	// 	fmt.Println("main", ctx.Err())
-	// }
-	time.Sleep(1 * time.Second)
-	cancel()
-	time.Sleep(1 * time.Second)
+// 执行命令并获取输出的函数
+func execCommand(command string) (int, error) {
+	out, err := exec.Command("sh", "-c", command).Output()
+	if err != nil {
+		return 0, err
+	}
+	output := strings.TrimSpace(string(out))
+	result, err := strconv.Atoi(output)
+	if err != nil {
+		return 0, err
+	}
+	return result, nil
 }
 
-func handle(ctx context.Context, duration time.Duration) {
-	select {
-	case <-ctx.Done():
-		fmt.Println("handle", ctx.Err())
-	case <-time.After(duration):
-		fmt.Println("process request with", duration)
+// tupd 函数：获取TCP连接数、UDP连接数、进程数和线程数
+func tupd() (int, int, int, int, error) {
+	// 获取TCP连接数
+	tcpCount, err := execCommand("ss -t | wc -l")
+	if err != nil {
+		return 0, 0, 0, 0, err
 	}
+	tcpCount--
+
+	// 获取UDP连接数
+	udpCount, err := execCommand("ss -u | wc -l")
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	udpCount--
+
+	// 获取进程数
+	processCount, err := execCommand("ps -ef | wc -l")
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	processCount -= 2
+
+	// 获取线程数
+	threadCount, err := execCommand("ps -eLf | wc -l")
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	threadCount -= 2
+
+	return tcpCount, udpCount, processCount, threadCount, nil
+}
+
+func main() {
+	tcp, udp, process, thread, err := tupd()
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	fmt.Printf("TCP connections: %d\n", tcp)
+	fmt.Printf("UDP connections: %d\n", udp)
+	fmt.Printf("Processes: %d\n", process)
+	fmt.Printf("Threads: %d\n", thread)
 }

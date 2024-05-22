@@ -115,12 +115,13 @@ func (s *ServiceRegister) Close() error {
 func main() {
 
 	// 读取配置文件
-	confs, err := LoadConfigFromEnv()
+	confs, err := LoadConfig("para.client.json")
 	if err != nil {
 		log.Fatalf("failed to load config: %v", err)
 	}
 	etcdHost := confs["etcd"].(map[string]interface{})["host"].(string)
 	etcdPort := confs["etcd"].(map[string]interface{})["port"].(string)
+	serverName := confs["serverName"].(string)
 
 	var endpoints = []string{etcdHost + ":" + etcdPort}
 
@@ -129,11 +130,12 @@ func main() {
 
 	// 获取当前服务器状态
 	nowServerStatus := getServerStatus()
+
 	//序列化为json
 	data, _ := json.Marshal(nowServerStatus)
 
 	// 加入时间参数
-	ser, err := NewServiceRegister(endpoints, "/server/kenger-x99/"+nowStr, string(data), 5) // 本地的8000端口，
+	ser, err := NewServiceRegister(endpoints, "/server/"+serverName+"/"+nowStr, string(data), 5) // 本地的8000端口，
 	if err != nil {
 		log.Fatalln(err)
 	}
