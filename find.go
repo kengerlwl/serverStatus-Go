@@ -13,11 +13,12 @@ import (
 
 // ServiceDiscovery 服务发现
 type ServiceDiscovery struct {
-	cli              *clientv3.Client         //etcd client
-	serverList       map[string]string        //服务列表
-	allExistedServer map[string]string        //所有存在过的服务
-	allExistedServe2 map[string]*ServerStatus //所有存在过的服务
-	lock             sync.Mutex
+	cli        *clientv3.Client  //etcd client
+	serverList map[string]string //服务列表
+	// allExistedServer map[string]string        //所有存在过的服务
+	allExistedServer2 map[string]*ServerStatus //所有存在过的服务
+	// allExistedServerAlive map[string]bool          //所有存在过的是否存活
+	lock sync.Mutex
 }
 
 // NewServiceDiscovery  新建发现服务
@@ -31,11 +32,12 @@ func NewServiceDiscovery(endpoints []string) *ServiceDiscovery {
 	}
 
 	return &ServiceDiscovery{
-		cli:              cli,
-		serverList:       make(map[string]string),
-		allExistedServer: make(map[string]string),
-		allExistedServe2: make(map[string]*ServerStatus),
-		lock:             sync.Mutex{},
+		cli:        cli,
+		serverList: make(map[string]string),
+		// allExistedServer: make(map[string]string),
+		allExistedServer2: make(map[string]*ServerStatus),
+		// allExistedServerAlive: make(map[string]bool),
+		lock: sync.Mutex{},
 	}
 }
 
@@ -78,17 +80,17 @@ func (s *ServiceDiscovery) SetServiceList(key, val string) {
 	defer s.lock.Unlock()
 	s.serverList[key] = string(val)
 
-	if _, flagExist := s.allExistedServer[key]; flagExist {
+	if _, flagExist := s.allExistedServer2[key]; flagExist {
 		// log.Println("update key :", key, "val:", val)
 	} else {
 		log.Println("put key:", key, "val:", val)
 	}
 
-	s.allExistedServer[key] = string(val)
+	// s.allExistedServer[key] = string(val)
 	var serverStatus ServerStatus
 	json.Unmarshal([]byte(val), &serverStatus)
 	// fmt.Println(serverStatus)
-	s.allExistedServe2[key] = &serverStatus
+	s.allExistedServer2[key] = &serverStatus
 
 }
 
@@ -97,7 +99,23 @@ func (s *ServiceDiscovery) DelServiceList(key string) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	delete(s.serverList, key)
-	log.Println("del key:", key)
+	log.Println("serverList del key:", key)
+	s.allExistedServer2[key].ServerOnline = false //设置为不在线
+}
+
+// 删除某个历史服务
+func (s *ServiceDiscovery) DelExistedlService(key string) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	// for k, v := range s.allExistedServer2 {
+	// 	fmt.Println(k, v)
+	// }
+	// fmt.Println("after")
+
+	delete(s.allExistedServer2, key)
+	log.Println("allExistedServer2 del key:", key)
+
 }
 
 // GetServices 获取服务地址
@@ -117,36 +135,89 @@ func (s *ServiceDiscovery) Close() error {
 	return s.cli.Close()
 }
 
-func (s *ServiceDiscovery) startWebServer() {
-	// 设置处理函数
-	http.HandleFunc("/json/stats.json", func(w http.ResponseWriter, r *http.Request) {
-		// 创建一个响应对象
-		// fmt.Println("get request")
-		s.lock.Lock()
-		items := make([]ServerStatus, 0)
-		for _, v := range s.allExistedServe2 {
-			items = append(items, *v)
-		}
-		s.lock.Unlock()
-		nowTime := time.Now().Unix()
-		// 创建包含服务器列表的对象
-		responseData := map[string]interface{}{
-			"servers": items,
-			"updated": nowTime,
-		}
-		// 将响应对象编码为JSON
-		jsonData, err := json.Marshal(responseData)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+// web 服务
+
+// ServerStatus 服务器状态
+func (s *ServiceDiscovery) webRespAllServer(w http.ResponseWriter, r *http.Request) {
+	// 创建一个响应对象
+	// fmt.Println("get request")
+	s.lock.Lock()
+	items := make([]ServerStatus, 0)
+	for _, v := range s.allExistedServer2 {
+		items = append(items, *v)
+	}
+	s.lock.Unlock()
+	nowTime := time.Now().Unix()
+	// 创建包含服务器列表的对象
+	responseData := map[string]interface{}{
+		"servers": items,
+		"updated": nowTime,
+	}
+	// 将响应对象编码为JSON
+	jsonData, err := json.Marshal(responseData)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 设置响应头
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	// 写入响应体
+	w.Write(jsonData)
+}
+
+// 删除某个历史服务
+func (s *ServiceDiscovery) webDelExistedlService(w http.ResponseWriter, r *http.Request) {
+	// 获取target参数
+	target := r.URL.Query().Get("target")
+	if target == "" {
+		http.Error(w, "target is required", http.StatusBadRequest)
+		return
+	}
+	target = "/server/" + target
+	// 如果服务当前活跃，不可以删除
+	if _, flagExist := s.serverList[target]; flagExist {
+		http.Error(w, "target is alive， can`t delete", http.StatusBadRequest)
+		return
+	}
+
+	// 删除服务
+	s.DelExistedlService(target)
+	w.WriteHeader(http.StatusOK)
+	rsp := target + " del success"
+	w.Write([]byte(rsp))
+
+}
+
+// CORS 中间件
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 设置允许跨域的域名
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+
+		// 设置允许的请求方法
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+
+		// 设置允许的请求头
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// 如果是预检请求（OPTIONS方法），直接返回
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
 			return
 		}
 
-		// 设置响应头
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		// 写入响应体
-		w.Write(jsonData)
+		// 继续处理下一个中间件或处理函数
+		next.ServeHTTP(w, r)
 	})
+}
+
+func (s *ServiceDiscovery) startWebServer() {
+	// 设置处理函数
+	http.HandleFunc("/json/stats.json", s.webRespAllServer)
+
+	http.HandleFunc("/server/del", s.webDelExistedlService)
 
 	// 前端页面
 	fs := http.FileServer(http.Dir("./static"))
@@ -155,7 +226,7 @@ func (s *ServiceDiscovery) startWebServer() {
 	http.Handle("/", http.StripPrefix("/", fs))
 
 	// 启动服务器
-	http.ListenAndServe(":8080", nil)
+	http.ListenAndServe(":8080", corsMiddleware(http.DefaultServeMux))
 }
 
 func main() {

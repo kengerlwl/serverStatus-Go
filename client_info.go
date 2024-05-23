@@ -33,36 +33,37 @@ type ServerStatus struct {
 	Host     string `json:"host"` // 服务器地址
 	Location string `json:"location"`
 
-	Uptime      uint64          `json:"uptime"`
-	Load1       float64         `json:"load_1"`
-	Load5       float64         `json:"load_5"`
-	Load15      float64         `json:"load_15"`
-	Ping10010   float64         `json:"ping_10010"`
-	Ping189     float64         `json:"ping_189"`
-	Ping10086   float64         `json:"ping_10086"`
-	Time10010   float64         `json:"time_10010"`
-	Time189     float64         `json:"time_189"`
-	Time10086   float64         `json:"time_10086"`
-	TCP         int             `json:"tcp"`
-	UDP         int             `json:"udp"`
-	Process     int             `json:"process"`
-	Thread      int             `json:"thread"`
-	IORead      uint64          `json:"io_read"`
-	IOWrite     uint64          `json:"io_write"`
-	Custom      string          `json:"custom"`
-	MemoryTotal uint64          `json:"memory_total"`
-	MemoryUsed  uint64          `json:"memory_used"`
-	SwapTotal   uint64          `json:"swap_total"`
-	SwapUsed    uint64          `json:"swap_used"`
-	HddTotal    uint64          `json:"hdd_total"`
-	HddUsed     uint64          `json:"hdd_used"`
-	CPU         jsoniter.Number `json:"cpu"`
-	NetworkTx   uint64          `json:"network_tx"`
-	NetworkRx   uint64          `json:"network_rx"`
-	NetworkIn   uint64          `json:"network_in"`
-	NetworkOut  uint64          `json:"network_out"`
-	Online4     bool            `json:"online4"`
-	Online6     bool            `json:"online6"`
+	Uptime       uint64          `json:"uptime"`
+	Load1        float64         `json:"load_1"`
+	Load5        float64         `json:"load_5"`
+	Load15       float64         `json:"load_15"`
+	Ping10010    float64         `json:"ping_10010"`
+	Ping189      float64         `json:"ping_189"`
+	Ping10086    float64         `json:"ping_10086"`
+	Time10010    float64         `json:"time_10010"`
+	Time189      float64         `json:"time_189"`
+	Time10086    float64         `json:"time_10086"`
+	TCP          int             `json:"tcp"`
+	UDP          int             `json:"udp"`
+	Process      int             `json:"process"`
+	Thread       int             `json:"thread"`
+	IORead       uint64          `json:"io_read"`
+	IOWrite      uint64          `json:"io_write"`
+	Custom       string          `json:"custom"`
+	MemoryTotal  uint64          `json:"memory_total"`
+	MemoryUsed   uint64          `json:"memory_used"`
+	SwapTotal    uint64          `json:"swap_total"`
+	SwapUsed     uint64          `json:"swap_used"`
+	HddTotal     uint64          `json:"hdd_total"`
+	HddUsed      uint64          `json:"hdd_used"`
+	CPU          jsoniter.Number `json:"cpu"`
+	NetworkTx    uint64          `json:"network_tx"`
+	NetworkRx    uint64          `json:"network_rx"`
+	NetworkIn    uint64          `json:"network_in"`
+	NetworkOut   uint64          `json:"network_out"`
+	Online4      bool            `json:"online4"`
+	Online6      bool            `json:"online6"`
+	ServerOnline bool            `json:"server_online"`
 }
 
 // 获取当前服务器的状态信息
@@ -134,6 +135,7 @@ func getServerStatus() ServerStatus {
 		}
 		timer = 150.0
 	}
+	item.ServerOnline = true
 	timer -= *INTERVAL
 	// data, _ := json.Marshal(item)
 

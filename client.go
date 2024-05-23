@@ -135,7 +135,7 @@ func main() {
 	data, _ := json.Marshal(nowServerStatus)
 
 	// 加入时间参数
-	ser, err := NewServiceRegister(endpoints, "/server/"+serverName+"/"+nowStr, string(data), 5) // 本地的8000端口，
+	ser, err := NewServiceRegister(endpoints, "/server/"+serverName, string(data), 5) // 本地的8000端口，
 	if err != nil {
 		log.Fatalln(err)
 	}
