@@ -4,7 +4,7 @@ name: serverStatusGo CI
 on:
   push:
     paths:
-      - *.go'
+      - '*.go'
 
 jobs:
   build:
