@@ -1,0 +1,49 @@
+name: serverStatusGo CI
+
+# 检测到 src 文件内 .go 文件有变动执行编译
+on:
+  push:
+    paths:
+      - *.go'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 下载代码
+      - uses: actions/checkout@v3
+
+      # 设置 Go 环境
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.22.2'
+
+      # 编译 Go 项目
+      - name: Build with Go
+        run: |
+          
+          bash buildPrograme.sh
+
+      # 测试 Go 项目
+      # - name: Test with Go
+      #   run: go test ./...
+
+      # 将编译好的二进制文件放到 staging 文件夹
+      - run: mkdir staging && mv ./buildPackage/* ./staging
+
+      # 设置 jobs Go 版本环境变量
+      - name: Set Release version env variable
+        run: |
+          VERSION=$(git describe --tags --abbrev=0)
+          echo "RELEASE_VERSION=$VERSION" >> $GITHUB_ENV
+
+      # 上传文件并发布 Release
+      - uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GH_TOKEN }}"
+          automatic_release_tag: "${{ env.RELEASE_VERSION }}"
+          prerelease: false
+          title: "Release ${{ env.RELEASE_VERSION }}"
+          files: |
+            staging/my-go-app

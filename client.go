@@ -14,6 +14,7 @@ type ServiceRegister struct {
 	cli     *clientv3.Client //etcd client
 	leaseID clientv3.LeaseID //租约ID
 	//租约keepalieve相应chan
+	leaseTTL      int64 //租约时间
 	keepAliveChan <-chan *clientv3.LeaseKeepAliveResponse
 	key           string //key
 	val           string //value
@@ -34,9 +35,10 @@ func NewServiceRegister(endpoints []string, key, val string, lease int64) (*Serv
 		key: key,
 		val: val,
 	}
+	ser.leaseTTL = lease
 
 	//申请租约设置时间keepalive
-	if err := ser.putKeyWithLease(lease); err != nil {
+	if err := ser.putKeyWithLease(ser.leaseTTL); err != nil {
 		return nil, err
 	}
 
@@ -83,23 +85,60 @@ func (s *ServiceRegister) putKeyWithLease(lease int64) error {
 	return nil
 }
 
-// ListenLeaseRespChan 监听 续租情况，其实这是一个续租管道，每次续租成功都会有一个应答。那么，我们在成功时候就更新value内容
 func (s *ServiceRegister) ListenLeaseRespChan() {
-	for leaseKeepResp := range s.keepAliveChan {
-		log.Println("续约成功", leaseKeepResp)
+	for {
+		select {
+		case leaseKeepResp, ok := <-s.keepAliveChan:
+			if !ok {
+				// 如果续租管道关闭，则尝试重新连接
+				log.Println("续租管道关闭，尝试重新连接")
+				s.retryKeepAlive()
+				return
+			}
 
-		// 测试每次更新value内容
-		nowServerStatus := getServerStatus()
-		//序列化为json
-		data, _ := json.Marshal(nowServerStatus)
-		s.val = string(data)
+			log.Println("续约成功", leaseKeepResp)
 
-		_, err := s.cli.Put(context.Background(), s.key, s.val, clientv3.WithLease(s.leaseID))
-		if err != nil {
-			log.Println("更新value失败", err)
+			// 测试每次更新value内容
+			nowServerStatus := getServerStatus()
+			// 序列化为json
+			data, _ := json.Marshal(nowServerStatus)
+			s.val = string(data)
+
+			_, err := s.cli.Put(context.Background(), s.key, s.val, clientv3.WithLease(s.leaseID))
+			if err != nil {
+				log.Println("更新value失败", err)
+			}
 		}
 	}
 	log.Println("关闭续租")
+}
+
+// retryKeepAlive 尝试重新连接并恢复续租
+func (s *ServiceRegister) retryKeepAlive() {
+	for {
+		// 尝试重新获取租约ID
+		leaseResp, err := s.cli.Grant(context.Background(), int64(s.leaseTTL))
+		if err != nil {
+			log.Println("重新获取租约ID失败", err)
+			time.Sleep(2 * time.Second) // 等待2秒后重试
+			continue
+		}
+
+		s.leaseID = leaseResp.ID
+
+		// 开始续租
+		ch, err := s.cli.KeepAlive(context.Background(), s.leaseID)
+		if err != nil {
+			log.Println("重新开始续租失败", err)
+			time.Sleep(2 * time.Second) // 等待2秒后重试
+			continue
+		}
+
+		s.keepAliveChan = ch
+		log.Println("重新连接并恢复续租成功")
+		go s.ListenLeaseRespChan() // 重新启动监听
+		return
+	}
 }
 
 // Close 注销服务

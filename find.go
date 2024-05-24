@@ -101,6 +101,7 @@ func (s *ServiceDiscovery) DelServiceList(key string) {
 	delete(s.serverList, key)
 	log.Println("serverList del key:", key)
 	s.allExistedServer2[key].ServerOnline = false //设置为不在线
+
 }
 
 // 删除某个历史服务
