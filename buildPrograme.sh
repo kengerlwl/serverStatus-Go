@@ -1,5 +1,8 @@
 #!/bin/bash
 
+
+go mod tidy -e
+
 # 创建输出目录
 mkdir -p ./buildPackage
 
