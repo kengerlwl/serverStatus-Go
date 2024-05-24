@@ -117,3 +117,22 @@ set GOARCH=amd64
 go build -o ./buildPackage/server_linux_probe find.go config.go client_info.go
 
 ```
+
+
+# 设置release的标签
+创建标签：
+创建一个轻量级标签（例如 v1.0.0）：
+
+bash
+复制代码
+git tag v1.0.0
+或者创建一个带注释的标签：
+
+bash
+复制代码
+git tag -a v1.0.0 -m "Version 1.0.0"
+推送标签到远程仓库：
+
+bash
+复制代码
+git push origin v1.0.0
