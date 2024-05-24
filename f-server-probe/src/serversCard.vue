@@ -212,9 +212,11 @@
     },
     methods: {
       fetchData() {
-        axios.get( this.backendServerUrl+  '/json/stats.json')
+        axios.get(  this.backendServerUrl + '/json/stats.json')
           .then(response => {
             this.servers = response.data.servers;
+            // 按照servers的name排序
+            this.servers.sort((a, b) => a.name.localeCompare(b.name));
           })
           .catch(error => {
             console.error('Error fetching data:', error);
@@ -235,7 +237,7 @@
         this.isModalVisible = false;
         // alert(`Server ${serverName} deleted`);
         // delete server here
-        axios.get(this.backendServerUrl+  '/server/del?target=' + serverName)
+        axios.get( this.backendServerUrl + '/server/del?target=' + serverName)
           .then(response => {
             alert(response.data + '')
           })

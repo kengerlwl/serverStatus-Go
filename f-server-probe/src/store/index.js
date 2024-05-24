@@ -5,8 +5,8 @@ import { createStore } from 'vuex'
 const store = createStore({
   state: {
     globalVariable: 'Hello, World!',
-    // backendServerUrl: window.location.href
-    backendServerUrl: 'http://localhost:8080'
+    backendServerUrl: 'http://'+ window.location.host
+    // backendServerUrl: 'http://localhost:8080'
   },
   mutations: {
     setGlobalVariable(state, newValue) {
