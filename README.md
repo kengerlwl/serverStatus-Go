@@ -76,3 +76,43 @@ https://github.com/cppla/ServerStatus/blob/master/clients/client-linux.py
 
 
 
+
+
+# windows 上编译
+
+
+## 客户端
+### 编译为exe
+```
+go build -o ./buildPackage/client_probe.exe client.go config.go client_info.go
+client_probe.exe
+```
+
+
+### 打包为linux可执行
+```cmd
+set GOOS=linux
+set GOARCH=amd64
+
+go build -o ./buildPackage/client_linux_probe client.go config.go client_info.go
+
+```
+
+
+
+## 服务端
+### 编译为exe
+```
+go build -o ./buildPackage/server_probe.exe find.go config.go client_info.go
+client_probe.exe
+```
+
+
+### 打包为linux可执行
+```cmd
+set GOOS=linux
+set GOARCH=amd64
+
+go build -o ./buildPackage/server_linux_probe find.go config.go client_info.go
+
+```

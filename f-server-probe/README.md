@@ -30,4 +30,8 @@ npm run dev
 
 ```sh
 npm run build
+
+
+# 建议使用如下
+npm run build-only
 ```

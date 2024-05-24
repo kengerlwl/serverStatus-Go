@@ -37,7 +37,7 @@
                             '0%': '#108ee9',
                             '100%': '#87d068',
                         }"
-                        :percent="(server.memory_used / server.memory_total * 100).toFixed(1)"
+                        :percent="(server.gpu_mem_info * 100).toFixed(1)"
                         :format="percent => `${percent}%`"
                         :size="80"
                         />
@@ -104,6 +104,46 @@
           <p><strong>Online (IPv4):</strong> {{ selectedServer.online4 ? 'Yes' : 'No' }}</p>
           <p><strong>Online (IPv6):</strong> {{ selectedServer.online6 ? 'Yes' : 'No' }}</p>
           <p><strong>Uptime:</strong> {{ selectedServer.uptime }}</p>
+          <!-- <p><strong>GPUInfo:</strong> {{ selectedServer.gpu_info }}</p> -->
+          <div v-for="gpu in selectedServer.gpu_info">
+            <a-row>
+                    <!-- 要保证20 + 4 = 24. 根据这个来分配比例 -->
+                    <a-col :span="18" :push="6">
+                    
+                        <a-progress
+                            :stroke-color="{
+                                '0%': '#108ee9',
+                                '100%': '#87d068',
+                            }"
+                            :style="{width: '100%'}"
+                            :percent="(gpu.GPUUtilization).toFixed(1)"
+                            :format="percent => `${percent}%`"
+                            />
+                    </a-col>
+                    <a-col :span="6" :pull="18">
+                        GPU{{gpu.GPUIndex}} 占用：
+                    </a-col>
+              </a-row>
+              <a-row>
+                    <!-- 要保证20 + 4 = 24. 根据这个来分配比例 -->
+                    <a-col :span="18" :push="6">
+                    
+                        <a-progress
+                            :stroke-color="{
+                                '0%': '#108ee9',
+                                '100%': '#87d068',
+                            }"
+                            :style="{width: '100%'}"
+                            :percent="(gpu.MemoryUtilization).toFixed(1)"
+                            :format="percent => `${percent}%`"
+                            />
+                    </a-col>
+                    <a-col :span="6" :pull="18">
+                      GPU{{gpu.GPUIndex}} 内存：
+                    </a-col>
+              </a-row>
+          </div>
+
           <p><strong>Load (1 min):</strong> {{ selectedServer.load_1 }}</p>
           <p><strong>Load (5 min):</strong> {{ selectedServer.load_5 }}</p>
           <p><strong>Load (15 min):</strong> {{ selectedServer.load_15 }}</p>
@@ -113,12 +153,12 @@
           <p><strong>Time (10010):</strong> {{ selectedServer.time_10010 }} ms</p>
           <p><strong>Time (189):</strong> {{ selectedServer.time_189 }} ms</p>
           <p><strong>Time (10086):</strong> {{ selectedServer.time_10086 }} ms</p>
-          <p><strong>TCP Connections:</strong> {{ selectedServer.tcp_count }}</p>
-          <p><strong>UDP Connections:</strong> {{ selectedServer.udp_count }}</p>
-          <p><strong>Processes:</strong> {{ selectedServer.process_count }}</p>
-          <p><strong>Threads:</strong> {{ selectedServer.thread_count }}</p>
-          <p><strong>Network RX:</strong> {{ selectedServer.network_rx }} B</p>
-          <p><strong>Network TX:</strong> {{ selectedServer.network_tx }} B</p>
+          <p><strong>TCP Connections:</strong> {{ selectedServer.tcp }}</p>
+          <p><strong>UDP Connections:</strong> {{ selectedServer.udp }}</p>
+          <p><strong>Processes:</strong> {{ selectedServer.process }}</p>
+          <p><strong>Threads:</strong> {{ selectedServer.thread }}</p>
+          <p><strong>Network RX:</strong> {{ (selectedServer.network_rx / 1024).toFixed(1) }} KB</p>
+          <p><strong>Network TX:</strong> {{ (selectedServer.network_tx / 1024).toFixed(1) }} KB</p>
           <p><strong>Network In:</strong> {{ formatBytes(selectedServer.network_in) }}</p>
           <p><strong>Network Out:</strong> {{ formatBytes(selectedServer.network_out) }}</p>
           <p><strong>CPU Usage:</strong> {{ selectedServer.cpu }}%</p>
@@ -126,12 +166,12 @@
           <p><strong>Memory Used:</strong> {{ formatBytes(selectedServer.memory_used) }}</p>
           <p><strong>Swap Total:</strong> {{ formatBytes(selectedServer.swap_total) }}</p>
           <p><strong>Swap Used:</strong> {{ formatBytes(selectedServer.swap_used) }}</p>
-          <p><strong>HDD Total:</strong> {{ selectedServer.hdd_total }} GB</p>
-          <p><strong>HDD Used:</strong> {{ selectedServer.hdd_used }} GB</p>
-          <p><strong>Last Network In:</strong> {{ formatBytes(selectedServer.last_network_in) }}</p>
-          <p><strong>Last Network Out:</strong> {{ formatBytes(selectedServer.last_network_out) }}</p>
-          <p><strong>IO Read:</strong> {{ selectedServer.io_read }} B</p>
-          <p><strong>IO Write:</strong> {{ selectedServer.io_write }} B</p>
+          <p><strong>HDD Total:</strong> {{ (selectedServer.hdd_total / 1024).toFixed(1) }} GB</p>
+          <p><strong>HDD Used:</strong> {{ (selectedServer.hdd_used / 1024).toFixed(1)}} GB</p>
+          <p><strong>All Network In:</strong> {{ formatBytes(selectedServer.network_in) }}</p>
+          <p><strong>All Network Out:</strong> {{ formatBytes(selectedServer.network_out) }}</p>
+          <p><strong>IO Read:</strong> {{ formatBytes(selectedServer.io_read)  }} TB</p>
+          <p><strong>IO Write:</strong> {{ formatBytes(selectedServer.io_write)  }} TB</p>
           <p v-html="selectedServer.custom"></p>
         </div>
       </a-modal>
@@ -140,6 +180,8 @@
   <script>
   import axios from 'axios';
   import { StarOutlined, StarFilled, StarTwoTone } from '@ant-design/icons-vue';
+  import { mapGetters } from 'vuex'
+
 
   export default {
     data() {
@@ -147,7 +189,19 @@
         isModalVisible: false,
         selectedServer: null,
         servers: []
+        // backendServerUrl: "/"
       };
+    },
+
+    computed: {
+    ...mapGetters(['backendServerUrl']),
+    backendServerUrl() {
+      return this.$store.state.backendServerUrl;
+    }
+  },
+    created() {
+          console.log("前置处理函数")
+          console.log(this.backendServerUrl);
     },
     mounted() {
       this.fetchData();
@@ -158,7 +212,7 @@
     },
     methods: {
       fetchData() {
-        axios.get('http://localhost:8080/json/stats.json')
+        axios.get( this.backendServerUrl+  '/json/stats.json')
           .then(response => {
             this.servers = response.data.servers;
           })
@@ -181,7 +235,7 @@
         this.isModalVisible = false;
         // alert(`Server ${serverName} deleted`);
         // delete server here
-        axios.get('http://localhost:8080//server/del?target=' + serverName)
+        axios.get(this.backendServerUrl+  '/server/del?target=' + serverName)
           .then(response => {
             alert(response.data + '')
           })

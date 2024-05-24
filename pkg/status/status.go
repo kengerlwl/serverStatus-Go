@@ -1,6 +1,8 @@
 package status
 
 import (
+	"bytes"
+	"fmt"
 	"math"
 	"net"
 	"os/exec"
@@ -20,6 +22,96 @@ var timer = 0.0
 var prevNetIn uint64
 var prevNetOut uint64
 
+// GPUUsage 包含 GPU 使用情况的信息
+type GPUUsage struct {
+	GPUIndex          int // GPU索引
+	GPUUtilization    int // GPU利用率（百分比）
+	MemoryUtilization int // 显存利用率（百分比）
+	MemoryTotal       int // 总显存（MiB）
+	MemoryUsed        int // 已用显存（MiB）
+}
+
+// execCommand 执行给定的shell命令并返回其输出
+func execCommand(command string) (string, error) {
+	var out bytes.Buffer
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
+// GetGpuUtils 获取系统的 GPU 使用情况
+func GetGpuUtils() ([]GPUUsage, error) {
+	// 执行 nvidia-smi 命令
+	output, err := execCommand("nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu --format=csv,noheader,nounits")
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute nvidia-smi: %w", err)
+	}
+
+	// 解析 nvidia-smi 的输出
+	var gpuUsages []GPUUsage
+	lines := strings.Split(output, "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		fields := strings.Split(line, ", ")
+		if len(fields) < 4 {
+			return nil, fmt.Errorf("unexpected output format: %s", line)
+		}
+
+		gpuIndex, err := strconv.Atoi(fields[0])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse GPU index: %w", err)
+		}
+
+		memoryUsed, err := strconv.Atoi(fields[1])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse memory used: %w", err)
+		}
+
+		memoryTotal, err := strconv.Atoi(fields[2])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse total memory: %w", err)
+		}
+
+		gpuUtilization, err := strconv.Atoi(fields[3])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse GPU utilization: %w", err)
+		}
+
+		gpuUsages = append(gpuUsages, GPUUsage{
+			GPUIndex:          gpuIndex,
+			GPUUtilization:    gpuUtilization,
+			MemoryUtilization: memoryUsed * 100 / memoryTotal,
+			MemoryTotal:       memoryTotal,
+			MemoryUsed:        memoryUsed,
+		})
+	}
+
+	return gpuUsages, nil
+}
+
+// // getGpuUtils 获取系统的GPU使用情况
+// func GetGpuUtils() ([]GPUUsage, error) {
+//     // 执行nvidia-smi命令
+//     output, err := execCommand("nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv,noheader,nounits")
+//     if err != nil {
+//         return nil, fmt.Errorf("failed to execute nvidia-smi: %w", err)
+//     }
+
+//     // 解析nvidia-smi的输出
+//     gpuUsages, err := parseNvidiaSmiOutput(output)
+//     if err != nil {
+//         return nil, fmt.Errorf("failed to parse nvidia-smi output: %w", err)
+//     }
+
+//     return gpuUsages, nil
+// }
+
 func Uptime() uint64 {
 	bootTime, _ := host.BootTime()
 	return uint64(time.Now().Unix()) - bootTime
@@ -30,18 +122,38 @@ func Load() float64 {
 	return theLoad.Load1
 }
 
+// execCommand 执行一个给定的 shell 命令，并返回结果的整数值。
+func execNetCommand(command string) (int, error) {
+	var out bytes.Buffer
+	cmd := exec.Command("sh", "-c", command)
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		return 0, err
+	}
+
+	// 去除输出中的换行符并转换为整数
+	output := strings.TrimSpace(out.String())
+	result, err := strconv.Atoi(output)
+	if err != nil {
+		return 0, err
+	}
+
+	return result, nil
+}
+
 func Tupd() (int, int, int, int) {
-	// tcpCount, _ := execCommand("ss -t | wc -l")
-	// udpCount, _ := execCommand("ss -u | wc -l")
-	// processCount, _ := execCommand("ps -ef | wc -l")
-	// threadCount, _ := execCommand("ps -eLf | wc -l")
-	// return tcpCount - 1, udpCount - 1, processCount - 2, threadCount - 2
-	var a, b, c, d int
-	a = 0
-	b = 0
-	c = 0
-	d = 0
-	return a, b, c, d
+	tcpCount, _ := execNetCommand("ss -t | wc -l")
+	udpCount, _ := execNetCommand("ss -u | wc -l")
+	processCount, _ := execNetCommand("ps -ef | wc -l")
+	threadCount, _ := execNetCommand("ps -eLf | wc -l")
+	return tcpCount - 1, udpCount - 1, processCount - 2, threadCount - 2
+	// var a, b, c, d int
+	// a = 0
+	// b = 0
+	// c = 0
+	// d = 0
+	// return a, b, c, d
 	// return 0, 0, 0, 0, nil
 }
 
