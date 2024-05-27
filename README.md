@@ -101,6 +101,7 @@ docker run -d \
     "serverLocation":"HK"
 }
 ```
+- 注意，客户端的gpu显示，需要用到`nvidia-smi`命令。
 
 
 

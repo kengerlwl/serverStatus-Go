@@ -103,7 +103,7 @@
           <p><strong>Host:</strong> {{ selectedServer.host }}</p>
           <p><strong>Online (IPv4):</strong> {{ selectedServer.online4 ? 'Yes' : 'No' }}</p>
           <p><strong>Online (IPv6):</strong> {{ selectedServer.online6 ? 'Yes' : 'No' }}</p>
-          <p><strong>Uptime:</strong> {{ selectedServer.uptime }}</p>
+          <p><strong>Uptime:</strong> {{ formatUptime(selectedServer.uptime) }}</p>
           <!-- <p><strong>GPUInfo:</strong> {{ selectedServer.gpu_info }}</p> -->
           <div v-for="gpu in selectedServer.gpu_info">
             <a-row>
@@ -211,6 +211,19 @@
       clearInterval(this.interval);
     },
     methods: {
+
+
+      formatUptime(seconds) {
+      const days = Math.floor(seconds / (24 * 3600));
+      let remainingSeconds = seconds % (24 * 3600);
+      const hours = Math.floor(remainingSeconds / 3600);
+      remainingSeconds %= 3600;
+      const minutes = Math.floor(remainingSeconds / 60);
+      const secs = remainingSeconds % 60;
+
+      return `${days}d ${hours}h ${minutes}m ${secs}s`;
+    },
+
       fetchData() {
         axios.get(  this.backendServerUrl + '/json/stats.json')
           .then(response => {
