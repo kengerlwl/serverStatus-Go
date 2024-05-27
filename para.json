@@ -2,5 +2,9 @@
     "etcd": {
         "host": "hw.ubuntu.kenger.work",
         "port": "2379"
-    }
+    },
+    "serverName":"kenger-x99",
+    "serverType":"Google",
+    "serverHost":"hw.ubuntu.kenger.work",
+    "serverLocation":"HK"
 }

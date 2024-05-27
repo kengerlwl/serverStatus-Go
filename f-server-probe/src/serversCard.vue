@@ -1,6 +1,6 @@
 <template>
-    <div :style="{ background: '#fff', padding: '24px', minHeight: '280px', display: 'flex', justifyContent: 'center', alignItems: 'center', flexDirection: 'column' }">
-      <div v-for="server in servers" :key="server.host" style="margin-bottom: 16px;">
+  <div :style="{ background: '#fff', padding: '24px', minHeight: '280px', display: 'flex', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'flex-start', gap: '16px' }">
+    <div v-for="server in servers" :key="server.host" style="flex: 0 1 auto;">
         <a-card :title="`Server: ${server.name}`" style="width: 300px">
           <template #extra>
             <!-- <a-button type="primary" :visible="server.server_online" v-model:visible="server.server_online" danger ghost>Danger</a-button> -->

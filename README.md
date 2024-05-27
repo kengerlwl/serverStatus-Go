@@ -1,138 +1,143 @@
-# serverStatus-Go
- 基于go的服务器探针系统
+# 介绍
 
+服务器云探针系统，提供可视化界面。
 
-# run
-## client
-`go run client.go config.go client_info.go`
+参考了[cppla/ServerStatus](https://github.com/cppla/ServerStatus)的设计思路。
 
-## find
+**不同的是，针对实验室的日常使用进行了优化，加入GPU等监控（欢迎大家提意见）。**
 
-`go run find.go config.go client_info.go`
+基于**go**语言开发，用**Etcd**实现了持久化以及一致性。
 
+针对多个平台进行了打包，提供win64，linux64的运行包。下载即用，非常方便。
 
-# to do
+运行截图如下：
 
-- 修改配置文件的读取。让client可以设置机器名字，以及其他参数(done) 
-- 服务器端添加web接口，主要是一个读取接口和一个删除某个服务器节点的接口 done
-- 删除接口高危，需要鉴权。但是先不管
-- etcd的设置状态也应该鉴权
-- 加入前端界面对接。建议直接套用 (done)
-- 客户端网络不稳定，重新上线功能
-- 
+![alt text](./docs/images/image1.png)
+
+点击可以查看详细信息
+![alt text](./docs/images/image3.png)
 
 
 
-## 数据补全
+## to do
 
-```go
-:{"uptime":128046,"load":0.00,"memory_total":201234888,"memory_used":19282060,"swap_total":201234888,"swap_used":24828188,"hdd_total":953159,"hdd_used":691802,"cpu":23.4,"network_tx":773327424,"network_rx":2685766416,"network_in":5371532832,"network_out":1546654849,"online4":true,"online6":false}
+- 加入下线预警系统
+
+
+
+# 如何使用
+
+## 基于可执行文件
+
+### 1.下载相应的可执行文件
+
+点击链接**Release**[Releases · kengerlwl/serverStatus-Go](https://github.com/kengerlwl/serverStatus-Go/releases)
+
+![alt text](./docs/images/image2.png)
+
+**包括：（请根据自己的需求下载）**
+
+- probe探针
+
+  - linux客户端执行文件（即你需要检测的服务器）
+
+  - win客户端执行exe。（window也可以监控）
+
+- 服务器部署server端
+  - 部署在linux上的可视化以及监控系统
+  - 部署在win上的可视化以及监控系统
+
+
+
+ 
+
+### 2.运行etcd键值对系统
+
+可以使用docker等方式来运行。
+
+**参见**
+
+````
 ```
-
-https://github.com/cppla/ServerStatus/blob/master/clients/client-linux.py
-```py
-  array['uptime'] = Uptime
-                array['load_1'] = Load_1
-                array['load_5'] = Load_5
-                array['load_15'] = Load_15
-                array['memory_total'] = MemoryTotal
-                array['memory_used'] = MemoryUsed
-                array['swap_total'] = SwapTotal
-                array['swap_used'] = SwapTotal - SwapFree
-                array['hdd_total'] = HDDTotal
-                array['hdd_used'] = HDDUsed
-                array['cpu'] = CPU
-                array['network_rx'] = netSpeed.get("netrx")
-                array['network_tx'] = netSpeed.get("nettx")
-                array['network_in'] = NET_IN
-                array['network_out'] = NET_OUT
-                array['ping_10010'] = lostRate.get('10010') * 100
-                array['ping_189'] = lostRate.get('189') * 100
-                array['ping_10086'] = lostRate.get('10086') * 100
-                array['time_10010'] = pingTime.get('10010')
-                array['time_189'] = pingTime.get('189')
-                array['time_10086'] = pingTime.get('10086')
-                array['tcp'], array['udp'], array['process'], array['thread'] = tupd()
-                array['io_read'] = diskIO.get("read")
-                array['io_write'] = diskIO.get("write")
-                array['custom'] = "<br>".join(f"{k}\\t解析: {v['dns_time']}\\t连接: {v['connect_time']}\\t下载: {v['download_time']}\\t在线率: <code>{v['online_rate']*100:.1f}%</code>" for k, v in monitorServer.items())
+docker run -d \
+    --name etcd \
+    -p 2379:2379 \
+    -p 2380:2380 \
+    quay.io/coreos/etcd:v3.5.0 \
+    /usr/local/bin/etcd \
+    --advertise-client-urls http://0.0.0.0:2379 \
+    --listen-client-urls http://0.0.0.0:2379 \
+    --initial-advertise-peer-urls http://0.0.0.0:2380 \
+    --listen-peer-urls http://0.0.0.0:2380 \
+    --initial-cluster-token etcd-cluster \
+    --initial-cluster default=http://0.0.0.0:2380 \
+    --initial-cluster-state new
 ```
-
-
-# 功能
-
-## 客户端注册信息
-实现客户端注册信息到服务器
-然后定时更新客户端的信息
-
-
-## 服务器端
-
-### 获取信息
-获取当前所有活跃客户端的信息
-- 针对gpu服务器，添加gpu的具体信息
-
-### 获取历史所有客户端的信息
-实现客户端下线的功能，也就是，虽然当前活跃的系统里面没有，但是曾经有过
+````
 
 
 
 
 
-# windows 上编译
+### 3 编写外部配置
+
+本项目目前用的是json文件配置
 
 
-## 客户端
-### 编译为exe
-```
-go build -o ./buildPackage/client_probe.exe client.go config.go client_info.go
-client_probe.exe
-```
 
+**客户端配置：**
 
-### 打包为linux可执行
-```cmd
-set GOOS=linux
-set GOARCH=amd64
-
-go build -o ./buildPackage/client_linux_probe client.go config.go client_info.go
+新建`para.client.json`文件与可执行文件在同一个目录。
 
 ```
-
-
-
-## 服务端
-### 编译为exe
-```
-go build -o ./buildPackage/server_probe.exe find.go config.go client_info.go
-client_probe.exe
+{
+    "etcd": {  \\ etcd的配置
+        "host": "hw.ubuntu.kenger.work",
+        "port": "2379"
+    },
+    "serverName":"kenger-x99", \\ 主机名，需要唯一
+    "serverType":"Google",
+    "serverHost":"hw.ubuntu.kenger.work",
+    "serverLocation":"HK"
+}
 ```
 
 
-### 打包为linux可执行
-```cmd
-set GOOS=linux
-set GOARCH=amd64
 
-go build -o ./buildPackage/server_linux_probe find.go config.go client_info.go
+
+
+**服务器端配置：**
+
+新建`para.server.json`文件与可执行文件在同一个目录。
 
 ```
+{
+    "etcd": {  \\ etcd的配置
+        "host": "hw.ubuntu.kenger.work",
+        "port": "2379"
+    }
+}
+```
+
+此外，服务器端，还需要将代码中的`static`目录页拷贝到可执行文件的同一个目录下
 
 
-# 设置release的标签
-创建标签：
-创建一个轻量级标签（例如 v1.0.0）：
 
-bash
-复制代码
-git tag v1.0.0
-或者创建一个带注释的标签：
+## 基于docker全流程部署
 
-bash
-复制代码
-git tag -a v1.0.0 -m "Version 1.0.0"
-推送标签到远程仓库：
+未完待续，暂时没有时间做打包，大家有兴趣可以帮忙做一下。
 
-bash
-复制代码
-git push origin v1.0.0
+
+
+
+
+# 相关开源项目 ：
+
+
+
+- ServerStatus-Toyo：https://github.com/ToyoDAdoubiBackup/ServerStatus-Toyo MIT License
+- ServerStatus：https://github.com/BotoX/ServerStatus WTFPL License
+- mojeda's ServerStatus: https://github.com/mojeda/ServerStatus WTFPL License -> GNU GPLv3 License (ServerStatus is a full rewrite of mojeda's ServerStatus script and not affected by GPL)
+- BlueVM's project: http://www.lowendtalk.com/discussion/comment/169690#Comment_169690 WTFPL License
+
+- [cokemine/ServerStatus-Hotaru: 云探针、多服务器探针、云监控、多服务器云监控](https://github.com/cokemine/ServerStatus-Hotaru)
